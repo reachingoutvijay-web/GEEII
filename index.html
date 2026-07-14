@@ -952,12 +952,29 @@ if(mani){
 // Backend endpoint (Google Apps Script Web App / Google Sheets)
 const GEEI_ENDPOINT='https://script.google.com/macros/s/AKfycbybwkD6NVovMNTPxI7CTAs9YmYzfKqnv_YVS7mpyOZGwaeTgL3kmJUcVCbY2rlvjhvf/exec';
 
-function geeiSubmit(form,formName){
-  const data=new FormData(form);
-  data.append('formType',formName);
-  // Apps Script web apps don't return CORS headers by default, so we fire-and-forget
-  // in no-cors mode. We can't read the response, but the submission still reaches the sheet.
-  return fetch(GEEI_ENDPOINT,{method:'POST',mode:'no-cors',body:data});
+function geeiSubmit(form,type){
+  const fd=new FormData(form);
+  // Map to the exact keys doPost() expects
+  const payload={type:type};
+  if(type==='quote'){
+    payload.name=fd.get('name')||'';
+    payload.company=fd.get('company')||'';
+    payload.variety=fd.get('variety')||'';
+    payload.destination=fd.get('destination')||'';
+    payload.message=fd.get('details')||'';
+  } else if(type==='subscriber'){
+    payload.email=fd.get('email')||'';
+  }
+  // Apps Script doPost() expects JSON in e.postData.contents. We use text/plain
+  // as the Content-Type so the browser sends this as a "simple request" and
+  // skips the CORS preflight (which Apps Script doesn't handle). We're still in
+  // no-cors mode, so we can't read the JSON response back, but the row gets written.
+  return fetch(GEEI_ENDPOINT,{
+    method:'POST',
+    mode:'no-cors',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify(payload)
+  });
 }
 
 // Subscribe form
@@ -965,7 +982,7 @@ const subForm=document.getElementById('subForm');
 if(subForm){
   subForm.addEventListener('submit',e=>{
     e.preventDefault();
-    geeiSubmit(e.target,'subscribe')
+    geeiSubmit(e.target,'subscriber')
       .then(()=>{
         alert('Subscribed. You will receive weekly Guntur market rates.');
         e.target.reset();
